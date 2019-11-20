@@ -1,14 +1,13 @@
-(function (global, undefined) {
+(function () {
     "use strict";
 
-    if (global.setImmediate) {
+    if (window.setImmediate)
         return;
-    }
-
+    
     var nextHandle = 1; // Spec says greater than zero
     var tasksByHandle = {};
     var currentlyRunningATask = false;
-    var doc = global.document;
+
     var registerImmediate;
 
     function setImmediate(callback) {
@@ -84,14 +83,14 @@
     function canUsePostMessage() {
         // The test against `importScripts` prevents this implementation from being installed inside a web worker,
         // where `global.postMessage` means something completely different and can't be used for this purpose.
-        if (global.postMessage && !global.importScripts) {
+        if (window.postMessage && !window.importScripts) {
             var postMessageIsAsynchronous = true;
-            var oldOnMessage = global.onmessage;
-            global.onmessage = function() {
+            var oldOnMessage = window.onmessage;
+            window.onmessage = function() {
                 postMessageIsAsynchronous = false;
             };
-            global.postMessage("", "*");
-            global.onmessage = oldOnMessage;
+            window.postMessage("", "*");
+            window.onmessage = oldOnMessage;
             return postMessageIsAsynchronous;
         }
     }
@@ -103,21 +102,21 @@
 
         var messagePrefix = "setImmediate$" + Math.random() + "$";
         var onGlobalMessage = function(event) {
-            if (event.source === global &&
+            if (event.source === window &&
                 typeof event.data === "string" &&
                 event.data.indexOf(messagePrefix) === 0) {
                 runIfPresent(+event.data.slice(messagePrefix.length));
             }
         };
 
-        if (global.addEventListener) {
-            global.addEventListener("message", onGlobalMessage, false);
+        if (window.addEventListener) {
+            window.addEventListener("message", onGlobalMessage, false);
         } else {
-            global.attachEvent("onmessage", onGlobalMessage);
+            window.attachEvent("onmessage", onGlobalMessage);
         }
 
         registerImmediate = function(handle) {
-            global.postMessage(messagePrefix + handle, "*");
+            window.postMessage(messagePrefix + handle, "*");
         };
     }
 
@@ -134,18 +133,18 @@
     }
 
     function installReadyStateChangeImplementation() {
-        var html = doc.documentElement;
+
         registerImmediate = function(handle) {
             // Create a <script> element; its readystatechange event will be fired asynchronously once it is inserted
             // into the document. Do so, thus queuing up the task. Remember to clean up once it's been called.
-            var script = doc.createElement("script");
+            var script = document.createElement("script");
             script.onreadystatechange = function () {
                 runIfPresent(handle);
                 script.onreadystatechange = null;
-                html.removeChild(script);
+                document.documentElement.removeChild(script);
                 script = null;
             };
-            html.appendChild(script);
+            document.documentElement.appendChild(script);
         };
     }
 
@@ -160,7 +159,7 @@
     attachTo = attachTo && attachTo.setTimeout ? attachTo : global;
 
     // Don't get fooled by e.g. browserify environments.
-    if ({}.toString.call(global.process) === "[object process]") {
+    if ({}.toString.call(window.process) === "[object process]") {
         // For Node.js before 0.9
         installNextTickImplementation();
 
@@ -168,11 +167,11 @@
         // For non-IE10 modern browsers
         installPostMessageImplementation();
 
-    } else if (global.MessageChannel) {
+    } else if (window.MessageChannel) {
         // For web workers, where supported
         installMessageChannelImplementation();
 
-    } else if (doc && "onreadystatechange" in doc.createElement("script")) {
+    } else if (document && "onreadystatechange" in document.createElement("script")) {
         // For IE 6–8
         installReadyStateChangeImplementation();
 
@@ -183,4 +182,4 @@
 
     attachTo.setImmediate = setImmediate;
     attachTo.clearImmediate = clearImmediate;
-}(typeof self === "undefined" ? typeof global === "undefined" ? this : global : self));
+}());
